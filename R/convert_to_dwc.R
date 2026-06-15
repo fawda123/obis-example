@@ -21,9 +21,13 @@ library(lubridate)
 library(sf)
 library(worrms)
 library(tbeptools)
+library(here)
 
 transect_sf <- trnpts
-trnsct <- read_transect(raw = T)
+# trnsct <- read_transect(raw = T)
+
+# write.csv(trnsct, here('data', 'trnsct.csv'), row.names = FALSE)
+trnsct <- read.csv(here('data', 'trnsct.csv'))
 
 # ---------------------------------------------------------------------------
 # Configuration — adjust before running
@@ -49,20 +53,30 @@ ABSENCE_TAXON_RANK  <- "order"
 # VERIFY: replace `Transect` with the column in that sf object that
 #         matches the Transect column in trnsct.
 transect_locs <- transect_sf |>
+  filter(Metermark == 0) |>
   mutate(
     decimalLongitude = st_coordinates(geometry)[, 1],
     decimalLatitude  = st_coordinates(geometry)[, 2]
   ) |>
   st_drop_geometry() |>
-  select(Transect = TRAN_ID, decimalLatitude, decimalLongitude) |> 
-  summarise(
-    decimalLongitude = mean(decimalLongitude),
-    decimalLatitude  = mean(decimalLatitude),
-    .by = Transect
-  )
+  select(Transect = TRAN_ID, decimalLatitude, decimalLongitude)
 
 dat <- trnsct |>
-  left_join(transect_locs, by = "Transect")
+  left_join(transect_locs, by = "Transect") |>
+  mutate(
+    Species = gsub('^.*\\:\\s|\\n$', '', Species),
+    Species = gsub('spp\\.$', '', Species),
+    Species = gsub('(^Ulva).*', '\\1', Species),
+    # Map informal drift algae field codes to accepted WoRMS taxon names
+    Species = case_when(
+      trimws(tolower(Species)) == "drift brown" ~ "Phaeophyceae",
+      trimws(tolower(Species)) == "drift green" ~ "Chlorophyta",
+      trimws(tolower(Species)) == "drift reds"  ~ "Rhodophyta",
+      trimws(tolower(Species)) == "drift red" ~ "Rhodophyta",
+      Species == 'Lyngbya/Dapis' ~ 'Dapis',
+      TRUE ~ Species
+    )
+  )
 
 # ---------------------------------------------------------------------------
 # 2. Resolve taxa to WoRMS
@@ -74,7 +88,7 @@ presence_species <- dat |>
   pull(Species)
 
 message("Looking up ", length(presence_species), " taxa in WoRMS...")
-worms_raw        <- wm_records_names(name = presence_species, fuzzy = FALSE, marine_only = TRUE)
+worms_raw        <- wm_records_names(name = presence_species, fuzzy = TRUE, marine_only = TRUE)
 names(worms_raw) <- presence_species
 
 species_lookup <- bind_rows(worms_raw, .id = "Species") |>
@@ -123,9 +137,14 @@ depth_to_m <- function(d) if_else(d != 0, abs(d) / 100, NA_real_)
 base_cols <- dat |>
   mutate(
     occurrenceID         = paste(INSTITUTION_CODE, COLLECTION_CODE, ID, sep = ":"),
+    parentEventID        = paste(INSTITUTION_CODE, COLLECTION_CODE, "event",
+                                 Transect,
+                                 as.Date(ymd_hms(ObservationDate, quiet = TRUE)),
+                                 sep = ":"),
     eventID              = paste(INSTITUTION_CODE, COLLECTION_CODE, "event",
                                  Transect,
                                  as.Date(ymd_hms(ObservationDate, quiet = TRUE)),
+                                 Site,
                                  sep = ":"),
     eventDate            = format(ymd_hms(ObservationDate, quiet = TRUE), "%Y-%m-%dT%H:%M:%S"),
     year                 = year(ymd_hms(ObservationDate,  quiet = TRUE)),
@@ -138,7 +157,7 @@ base_cols <- dat |>
     stateProvince        = "Florida",
     waterBody            = BaySegment,
     locality             = paste(BaySegment, Transect),
-    locationID           = paste(INSTITUTION_CODE, COLLECTION_CODE, "loc", Transect, sep = ":"),
+    locationID           = paste(INSTITUTION_CODE, COLLECTION_CODE, "loc", Transect, Site, sep = ":"),
     samplingProtocol     = "seagrass transect point-intercept survey",
     institutionCode      = INSTITUTION_CODE,
     datasetName          = DATASET_NAME,
@@ -149,8 +168,8 @@ base_cols <- dat |>
     recordedBy           = Crew
   )
 
-shared_fields <- c(
-  "occurrenceID", "eventID",
+event_fields <- c(
+  "eventID", "parentEventID",
   "eventDate", "year", "month", "day",
   "decimalLatitude", "decimalLongitude", "geodeticDatum",
   "minimumDepthInMeters", "maximumDepthInMeters",
@@ -171,7 +190,7 @@ presence_occ <- base_cols |>
     basisOfRecord    = "HumanObservation",
     occurrenceStatus = "present"
   ) |>
-  select(all_of(shared_fields),
+  select(occurrenceID, eventID,
          basisOfRecord, occurrenceStatus,
          scientificName, scientificNameID, taxonRank,
          kingdom, phylum, class, order, family, genus)
@@ -192,7 +211,7 @@ absence_occ <- base_cols |>
     family           = absence_taxon_row$family,
     genus            = absence_taxon_row$genus
   ) |>
-  select(all_of(shared_fields),
+  select(occurrenceID, eventID,
          basisOfRecord, occurrenceStatus,
          scientificName, scientificNameID, taxonRank,
          kingdom, phylum, class, order, family, genus)
@@ -256,15 +275,45 @@ emof <- bind_rows(
 )
 
 # ---------------------------------------------------------------------------
-# 6. Write output
+# 6. Build event core
+# ---------------------------------------------------------------------------
+
+# Child events: one row per meter mark visit
+child_events <- base_cols |>
+  distinct(eventID, .keep_all = TRUE) |>
+  select(all_of(event_fields))
+
+# Parent events: one row per transect visit; depth varies per point so omit it
+parent_events <- base_cols |>
+  distinct(parentEventID, .keep_all = TRUE) |>
+  transmute(
+    eventID              = parentEventID,
+    parentEventID        = NA_character_,
+    eventDate            = format(as.Date(ymd_hms(ObservationDate, quiet = TRUE)), "%Y-%m-%d"),
+    year, month, day,
+    decimalLatitude, decimalLongitude, geodeticDatum,
+    minimumDepthInMeters = NA_real_,
+    maximumDepthInMeters = NA_real_,
+    country, countryCode, stateProvince, waterBody, locality,
+    locationID           = paste(institutionCode, collectionCode, "loc", Transect, sep = ":"),
+    samplingProtocol, institutionCode, datasetName, collectionCode, datasetID, license, recordedBy
+  )
+
+event <- bind_rows(parent_events, child_events)
+
+# ---------------------------------------------------------------------------
+# 7. Write output
 # ---------------------------------------------------------------------------
 
 dir.create("dwc", showWarnings = FALSE)
+write_csv(event,      "dwc/event.csv",      na = "")
 write_csv(occurrence, "dwc/occurrence.csv", na = "")
 write_csv(emof,       "dwc/emof.csv",       na = "")
 
 message(
   "\nDone.\n",
+  "  event.csv      : ", nrow(event), " rows  ",
+  "(", nrow(parent_events), " transect visits / ", nrow(child_events), " meter mark visits)\n",
   "  occurrence.csv : ", nrow(occurrence), " rows  ",
   "(", nrow(presence_occ), " presence / ", nrow(absence_occ), " absence)\n",
   "  emof.csv       : ", nrow(emof), " rows\n",
@@ -275,3 +324,6 @@ message(
   "  4. Author EML metadata (required alongside the CSVs)\n",
   "  5. Validate at https://obis.org/manual/processing/ before upload"
 )
+
+
+obistools::check_eventids(occurrence)
