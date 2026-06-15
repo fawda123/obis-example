@@ -20,6 +20,10 @@ library(readr)
 library(lubridate)
 library(sf)
 library(worrms)
+library(tbeptools)
+
+transect_sf <- trnpts
+trnsct <- read_transect(raw = T)
 
 # ---------------------------------------------------------------------------
 # Configuration — adjust before running
@@ -50,7 +54,12 @@ transect_locs <- transect_sf |>
     decimalLatitude  = st_coordinates(geometry)[, 2]
   ) |>
   st_drop_geometry() |>
-  select(Transect, decimalLatitude, decimalLongitude)
+  select(Transect = TRAN_ID, decimalLatitude, decimalLongitude) |> 
+  summarise(
+    decimalLongitude = mean(decimalLongitude),
+    decimalLatitude  = mean(decimalLatitude),
+    .by = Transect
+  )
 
 dat <- trnsct |>
   left_join(transect_locs, by = "Transect")
