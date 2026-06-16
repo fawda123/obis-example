@@ -43,6 +43,17 @@ dwc/
   emof.csv           Extended Measurement or Fact (eMoF) extension
 ```
 
+## Output files
+
+- [event.csv](dwc/event.csv)
+- [occurrence.csv](dwc/occurrence.csv)
+- [emof.csv](dwc/emof.csv)
+
+## QC report
+
+The archive quality control report is published at
+https://tbep-tech.github.io/obis-example/qc_report.html
+
 ## Requirements
 
 R packages (install once):
