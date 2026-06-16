@@ -22,7 +22,6 @@ library(sf)
 library(worrms)
 library(tbeptools)
 library(here)
-library(obistools)
 
 transect_sf    <- trnpts
 transect_lines <- trnlns
@@ -375,30 +374,3 @@ dir.create("dwc", showWarnings = FALSE)
 write_csv(event,      "dwc/event.csv",      na = "")
 write_csv(occurrence, "dwc/occurrence.csv", na = "")
 write_csv(emof,       "dwc/emof.csv",       na = "")
-
-# qc with obistools
-
-# # check species - note that this only checks those that are ambiguous from worms
-# # not those that are have more than one in your actual data
-# match_taxa(unique(occurrence$scientificName))
-
-# # check all required fiels are presnt
-# chk <- check_fields(event)
-
-# # check coords are in correct region
-# plot_map_leaflet(event)
-
-# # check depth of records (within expected range)
-# check_depth(event, report = T, depthmargin = 20)
-
-# # check event dates
-# check_eventdate(event)
-
-# # check event ids
-# check_eventids(event)
-
-# # check extension event ids
-# check_extension_eventids(event, emof)
-# check_extension_eventids(event, occurrence)
-
-# Hmisc::describe(event)

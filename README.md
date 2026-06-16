@@ -35,6 +35,8 @@ R/
   examples.R         Example queries using obis_api.R
 data/
   trnsct.csv         Seagrass transect monitoring records exported from tbeptools
+docs/
+  qc_report.qmd      Quarto QC report — run after convert_to_dwc.R to validate the archive
 dwc/
   event.csv          Darwin Core Event core
   occurrence.csv     Darwin Core Occurrence core

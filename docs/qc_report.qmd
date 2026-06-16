@@ -1,0 +1,260 @@
+---
+title: "Darwin Core Archive QC Report"
+subtitle: "Tampa Bay Interagency Seagrass Monitoring Program"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: true
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+## Overview
+
+This report runs quality control checks on the Darwin Core Archive (DwC-A) produced
+by `R/convert_to_dwc.R` for the Tampa Bay Interagency Seagrass Monitoring Program.
+The archive consists of three files in `dwc/`:
+
+| File | Content |
+|------|---------|
+| `event.csv` | One row per transect visit (parent event) and meter mark observation (child event) |
+| `occurrence.csv` | One row per species per meter mark, plus one absence record per bare point |
+| `emof.csv` | Quantitative measurements (cover, blade length, shoot density, epiphyte density, sediment type) linked to each occurrence |
+
+Checks use the [`obistools`](https://github.com/iobis/obistools) R package, which
+implements OBIS data quality requirements. Run `R/convert_to_dwc.R` first to
+generate the files in `dwc/` before rendering this report.
+
+## Setup
+
+```{r}
+#| label: setup
+library(dplyr)
+library(readr)
+library(DT)
+library(obistools)
+library(here)
+
+event      <- read_csv(here("dwc", "event.csv"),      show_col_types = FALSE)
+occurrence <- read_csv(here("dwc", "occurrence.csv"), show_col_types = FALSE)
+emof       <- read_csv(here("dwc", "emof.csv"),       show_col_types = FALSE)
+```
+
+```{r}
+#| label: row-counts
+#| echo: false
+tibble::tribble(
+  ~File,             ~Rows,
+  "event.csv",       nrow(event),
+  "occurrence.csv",  nrow(occurrence),
+  "emof.csv",        nrow(emof)
+) |>
+  knitr::kable(align = "lr", caption = "Row counts for each output file.")
+```
+
+## Taxa inventory
+
+The table below lists all taxa resolved to accepted WoRMS names in the presence
+occurrence records. The AphiaID is extracted from the `scientificNameID` field,
+which is stored as a Life Science Identifier (LSID) of the form
+`urn:lsid:marinespecies.org:taxname:<id>`. The count column shows the number of
+occurrence records referencing each taxon across all transect visits.
+
+```{r}
+#| label: taxa-table
+occurrence |>
+  filter(occurrenceStatus == "present") |>
+  mutate(
+    AphiaID = as.integer(sub(".*:", "", scientificNameID)),
+    WoRMS   = paste0(
+      '<a href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=',
+      AphiaID, '" target="_blank">', AphiaID, "</a>"
+    )
+  ) |>
+  count(scientificName, taxonRank, WoRMS, name = "occurrences") |>
+  arrange(scientificName) |>
+  datatable(
+    escape   = FALSE,
+    rownames = FALSE,
+    options  = list(pageLength = 25, dom = "ftp"),
+    colnames = c("Scientific name", "Rank", "AphiaID (WoRMS link)", "Occurrences")
+  )
+```
+
+## Required fields
+
+`check_fields()` verifies that all Darwin Core fields required by OBIS are present
+and non-empty. Required fields include `eventDate`, `decimalLatitude`,
+`decimalLongitude`, `scientificName`, `scientificNameID`, `occurrenceStatus`, and
+`basisOfRecord`. Recommended fields (`minimumDepthInMeters`,
+`maximumDepthInMeters`) are also checked at warning level.
+
+Because the event core and occurrence extension split these fields across two files,
+the check is run on a flat table formed by joining occurrence records with their
+parent event rows.
+
+```{r}
+#| label: check-fields
+occ_flat <- occurrence |>
+  inner_join(
+    select(event, eventID, eventDate, decimalLatitude, decimalLongitude,
+           minimumDepthInMeters, maximumDepthInMeters),
+    by = "eventID"
+  )
+
+issues <- check_fields(occ_flat)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+## Event ID integrity
+
+`check_eventids()` verifies the internal consistency of the event hierarchy. It
+checks that `eventID` is present and unique across all rows, and that every
+`parentEventID` value references an `eventID` that exists in the same table.
+Orphaned child events — those whose `parentEventID` does not match any `eventID` —
+would prevent OBIS from assembling the transect-to-point hierarchy correctly.
+
+In this archive, child events (meter mark visits, `eventType = "Point"`) link to
+parent events (transect visits, `eventType = "Transect"`) via `parentEventID`.
+Parent events have no `parentEventID` themselves.
+
+```{r}
+#| label: check-eventids
+issues <- check_eventids(event)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+## Extension linkage
+
+These checks verify that the identifier fields in the extension files all reference
+valid rows in their respective core tables.
+
+### Occurrence to event
+
+`check_extension_eventids()` confirms that every `eventID` in `occurrence.csv`
+matches an `eventID` in `event.csv`. Any unmatched row would indicate an orphaned
+occurrence record that OBIS cannot link to a location or date.
+
+```{r}
+#| label: check-ext-occurrence
+issues <- check_extension_eventids(event, occurrence)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+### eMoF to occurrence
+
+`check_extension_eventids()` is designed specifically for eventID linkage and cannot
+be used to verify occurrenceID linkage. Instead, an `anti_join()` is used to find
+any `occurrenceID` values in `emof.csv` that have no matching row in
+`occurrence.csv`. Any unmatched row would produce a measurement record with no
+associated taxon.
+
+```{r}
+#| label: check-ext-emof
+issues <- anti_join(emof, occurrence, by = "occurrenceID")
+
+if (nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+## Event dates
+
+`check_eventdate()` validates that all `eventDate` values conform to ISO 8601
+format. OBIS requires dates as `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, or date ranges
+using `/` as a separator (e.g., `2022-06-01/2022-06-03`). Invalid or missing dates
+prevent records from appearing in OBIS temporal queries and are treated as errors
+during OBIS ingestion.
+
+```{r}
+#| label: check-eventdate
+issues <- check_eventdate(event)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+## Depth QC
+
+`check_depth()` flags records where reported depths are inconsistent with known
+bathymetry. It queries the OBIS xylookup service using the record coordinates and
+compares `minimumDepthInMeters` / `maximumDepthInMeters` against the modelled
+seabed depth at each point. A `depthmargin` of 20 m accounts for tidal variation,
+datum offsets, and measurement uncertainty. Records at coordinates landward of the
+shoreline are also flagged as likely coordinate errors.
+
+Only child events carry depth values; parent events intentionally have `NA` for
+depth fields and are excluded before running the check.
+
+```{r}
+#| label: check-depth
+child_events <- event |>
+  filter(!is.na(minimumDepthInMeters))
+
+issues <- check_depth(child_events, report = TRUE, depthmargin = 20)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+## Spatial distribution
+
+`plot_map()` renders a static map of all event coordinates zoomed to the extent of
+the data. This provides a visual sanity check that points fall within Tampa Bay and
+that no coordinates are obviously misplaced (e.g., on land, in the wrong bay
+segment, or at 0, 0).
+
+```{r}
+#| label: plot-map
+plot_map(event, zoom = TRUE)
+```
+
+## Taxon name matching
+
+`match_taxa()` cross-checks scientific names against WoRMS using the
+`wm_records_taxamatch` API endpoint, which applies fuzzy phonetic matching and
+returns multiple candidate matches ranked by similarity score. When more than one
+accepted WoRMS record matches a name, the function prompts interactively for the
+user to select the correct one.
+
+This check is independent of the WoRMS lookup in `convert_to_dwc.R`, which uses
+`wm_records_names()`. It provides a second opinion that the resolved names are
+unambiguous in WoRMS. Because it requires interactive input it is not run during
+rendering — to use it, run the following in an interactive R session after loading
+the occurrence data:
+
+```{r}
+#| eval: false
+match_taxa(unique(occurrence$scientificName))
+```
+
+Names flagged as ambiguous by this function should be reviewed against the
+`aphia_overrides` vector in `convert_to_dwc.R` to confirm the correct AphiaID is
+pinned for each genus.
