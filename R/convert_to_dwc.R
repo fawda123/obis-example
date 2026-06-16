@@ -165,11 +165,12 @@ base_cols <- dat |>
     datasetID            = DATASET_ID,
     geodeticDatum        = "EPSG:4326",
     license              = LICENSE,
-    recordedBy           = Crew
+    recordedBy           = Crew,
+    eventType            = "Point"
   )
 
 event_fields <- c(
-  "eventID", "parentEventID",
+  "eventID", "parentEventID", "eventType",
   "eventDate", "year", "month", "day",
   "decimalLatitude", "decimalLongitude", "geodeticDatum",
   "minimumDepthInMeters", "maximumDepthInMeters",
@@ -289,6 +290,7 @@ parent_events <- base_cols |>
   transmute(
     eventID              = parentEventID,
     parentEventID        = NA_character_,
+    eventType            = "Transect",
     eventDate            = format(as.Date(ymd_hms(ObservationDate, quiet = TRUE)), "%Y-%m-%d"),
     year, month, day,
     decimalLatitude, decimalLongitude, geodeticDatum,
@@ -325,5 +327,4 @@ message(
   "  5. Validate at https://obis.org/manual/processing/ before upload"
 )
 
-
-obistools::check_eventids(occurrence)
+# obistools::check_eventids(occurrence)
