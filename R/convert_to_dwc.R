@@ -376,21 +376,6 @@ write_csv(event,      "dwc/event.csv",      na = "")
 write_csv(occurrence, "dwc/occurrence.csv", na = "")
 write_csv(emof,       "dwc/emof.csv",       na = "")
 
-message(
-  "\nDone.\n",
-  "  event.csv      : ", nrow(event), " rows  ",
-  "(", nrow(parent_events), " transect visits / ", nrow(child_events), " meter mark visits)\n",
-  "  occurrence.csv : ", nrow(occurrence), " rows  ",
-  "(", nrow(presence_occ), " presence / ", nrow(absence_occ), " absence)\n",
-  "  emof.csv       : ", nrow(emof), " rows\n",
-  "\nNext steps:\n",
-  "  1. Check species_lookup to confirm WoRMS matches are correct\n",
-  "  2. Fill in NERC P01 codes for eMoF measurementTypeID fields\n",
-  "  3. Register the dataset at https://obis.org and get a datasetID\n",
-  "  4. Author EML metadata (required alongside the CSVs)\n",
-  "  5. Validate at https://obis.org/manual/processing/ before upload"
-)
-
 # qc with obistools
 
 # # check species - note that this only checks those that are ambiguous from worms

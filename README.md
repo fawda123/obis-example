@@ -75,10 +75,6 @@ install.packages(c("httr2", "jsonlite"))
 
 The three output files are linked by shared identifiers:
 
-## Darwin Core Archive structure
-
-The three output files are linked by shared identifiers:
-
 ```mermaid
 flowchart LR
     subgraph event.csv
