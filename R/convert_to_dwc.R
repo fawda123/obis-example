@@ -24,7 +24,8 @@ library(tbeptools)
 library(here)
 library(obistools)
 
-transect_sf <- trnpts
+transect_sf    <- trnpts
+transect_lines <- trnlns
 # trnsct <- read_transect(raw = T)
 
 # write.csv(trnsct, here('data', 'trnsct.csv'), row.names = FALSE)
@@ -53,6 +54,10 @@ ABSENCE_TAXON_RANK  <- "order"
 # VERIFY: replace `transect_sf` with the name of your sf object and
 # VERIFY: replace `Transect` with the column in that sf object that
 #         matches the Transect column in trnsct.
+transect_bearing <- transect_lines |>
+  st_drop_geometry() |>
+  select(Transect = Site, bearing)
+
 transect_locs <- transect_sf |>
   filter(Metermark == 0) |>
   mutate(
@@ -60,16 +65,16 @@ transect_locs <- transect_sf |>
     decimalLatitude  = st_coordinates(geometry)[, 2]
   ) |>
   st_drop_geometry() |>
-  select(Transect = TRAN_ID, decimalLatitude, decimalLongitude)
+  select(Transect = TRAN_ID, decimalLatitude, decimalLongitude) |>
+  left_join(transect_bearing, by = "Transect")
 
 dat <- trnsct |>
   left_join(transect_locs, by = "Transect") |>
   mutate(
+    Species_orig = Species,
     Species = gsub('^.*\\:\\s|\\n$', '', Species),
     Species = gsub('\\s+spp\\.$', '', Species),
     Species = gsub('intestinales$', 'intestinalis', Species),
-    # Species = gsub('(^Ulva).*', '\\1', Species),
-    # Map informal drift algae field codes to accepted WoRMS taxon names
     Species = case_when(
       trimws(tolower(Species)) == "drift brown" ~ "Phaeophyceae",
       trimws(tolower(Species)) == "drift green" ~ "Chlorophyta",
@@ -82,8 +87,14 @@ dat <- trnsct |>
       Species == 'Syringodium' ~ 'Syringodium filiforme',
       Species == 'Ulva fasciata' ~ 'Ulva lactuca',
       TRUE ~ Species
+    ),
+    identificationRemarks = if_else(
+      Species_orig == "Ulva fasciata",
+      "Original source name was Ulva fasciata, remapped to accepted WoRMS synonym Ulva lactuca",
+      NA_character_
     )
   ) |>
+  select(-Species_orig) |>
   group_by(IDall) |>
   mutate(transect_date = min(as.Date(ymd_hms(ObservationDate, quiet = TRUE)), na.rm = TRUE)) |>
   ungroup()
@@ -187,6 +198,12 @@ base_cols <- dat |>
     collectionCode       = COLLECTION_CODE,
     datasetID            = DATASET_ID,
     geodeticDatum        = "EPSG:4326",
+    locationRemarks      = if_else(
+      !is.na(bearing),
+      paste0("Coordinates represent the transect start point (meter mark 0); ",
+             "the transect extends at a bearing of ", round(bearing, 1), " degrees from this location (+/- 180 from N)."),
+      "Coordinates represent the transect start point (meter mark 0); no bearing info available."
+    ),
     license              = LICENSE,
     recordedBy           = MonitoringAgency,
     eventType            = "Point"
@@ -199,7 +216,7 @@ event_fields <- c(
   "minimumDepthInMeters", "maximumDepthInMeters",
   "country", "countryCode", "stateProvince", "waterBody", "locality", "locationID",
   "samplingProtocol", "institutionCode", "datasetName", "collectionCode", "datasetID",
-  "license", "recordedBy"
+  "license", "recordedBy", "locationRemarks"
 )
 
 # ---------------------------------------------------------------------------
@@ -217,7 +234,8 @@ presence_occ <- base_cols |>
   select(occurrenceID, eventID,
          basisOfRecord, occurrenceStatus,
          scientificName, scientificNameID, taxonRank,
-         kingdom, phylum, class, order, family, genus)
+         kingdom, phylum, class, order, family, genus,
+         identificationRemarks)
 
 # 4b. Absence rows ("No Cover" — one record per point, taxon = Alismatales)
 absence_occ <- base_cols |>
@@ -343,7 +361,8 @@ parent_events <- base_cols |>
     maximumDepthInMeters = NA_real_,
     country, countryCode, stateProvince, waterBody, locality,
     locationID           = paste(institutionCode, collectionCode, "loc", Transect, sep = ":"),
-    samplingProtocol, institutionCode, datasetName, collectionCode, datasetID, license, recordedBy
+    samplingProtocol, institutionCode, datasetName, collectionCode, datasetID, license, recordedBy,
+    locationRemarks
   )
 
 event <- bind_rows(parent_events, child_events)
