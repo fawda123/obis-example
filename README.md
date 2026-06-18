@@ -22,9 +22,8 @@ and spatial reference layers.
 
 [OBIS](https://obis.org) (Ocean Biodiversity Information System) is a global
 open-access database for marine species occurrence data. Publishing data to OBIS
-requires formatting records in [Darwin Core](https://dwc.tdwg.org/) — a
-standardized vocabulary for biodiversity data — structured as a Darwin Core
-Archive (DwC-A).
+requires formatting records in [Darwin Core](https://dwc.tdwg.org/) structured as 
+a Darwin Core Archive (DwC-A).
 
 ## Repository contents
 
