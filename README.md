@@ -148,12 +148,11 @@ occurrence row in the eMoF file.
       blade length (`OBSINDLX`) and shoot density (`SDBIOL02`) are resolved;
       Braun-Blanquet cover, epiphyte density, and sediment type still need
       codes (request via [github.com/nvs-vocabs/OBISVocabs](https://github.com/nvs-vocabs/OBISVocabs/issues))
-- [ ] Register the dataset at [obis.org](https://obis.org) to obtain a
-      `datasetID` UUID, then update `DATASET_ID` in the configuration block
-- [ ] Author EML metadata (required alongside the CSVs — see the
-      [OBIS metadata guide](https://manual.obis.org/eml.html))
 - [ ] Validate the archive using the
       [OBIS validator](https://obis.org/manual/processing/) before upload
+- [ ] Register the dataset at [https://ipt-obis.gbif.us/](https://ipt-obis.gbif.us/), [Matthew Biddle](mailto:mathew.biddle@noaa.gov) is NOAA US contact
+- [ ] Author EML metadata (required alongside the CSVs — see the
+      [OBIS metadata guide](https://manual.obis.org/eml.html))
 
 ## References
 
@@ -162,3 +161,4 @@ occurrence row in the eMoF file.
 - WoRMS (World Register of Marine Species): https://www.marinespecies.org/
 - tbeptools documentation: https://tbep-tech.github.io/tbeptools/
 - Tampa Bay seagrass monitoring: https://tbep.org/seagrass-monitoring/
+- Course website: https://marinebon.org/2026-06-15-usf-moore-taxa-data-mobilization-workshop/
