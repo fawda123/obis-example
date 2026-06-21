@@ -160,16 +160,32 @@ if (is.null(issues) || nrow(issues) == 0) {
 }
 ```
 
-### eMoF to occurrence
+### eMoF to event
 
-`check_extension_eventids()` is designed specifically for eventID linkage and cannot
-be used to verify occurrenceID linkage. Instead, an `anti_join()` is used to find
-any `occurrenceID` values in `emof.csv` that have no matching row in
-`occurrence.csv`. Any unmatched row would produce a measurement record with no
-associated taxon.
+`check_extension_eventids()` confirms that every `eventID` in `emof.csv` matches an
+`eventID` in `event.csv`. Any unmatched row would indicate a measurement record that
+cannot be linked to a location or date.
 
 ```{r}
-#| label: check-ext-emof
+#| label: check-ext-emof-event
+issues <- check_extension_eventids(event, emof)
+
+if (is.null(issues) || nrow(issues) == 0) {
+  cat("No issues found.\n")
+} else {
+  datatable(issues, rownames = FALSE, options = list(pageLength = 15))
+}
+```
+
+### eMoF to occurrence
+
+`check_extension_eventids()` only verifies `eventID` linkage. An `anti_join()` is
+used separately to find any `occurrenceID` values in `emof.csv` that have no
+matching row in `occurrence.csv`. Any unmatched row would produce a measurement
+record with no associated taxon.
+
+```{r}
+#| label: check-ext-emof-occurrence
 issues <- anti_join(emof, occurrence, by = "occurrenceID")
 
 if (nrow(issues) == 0) {

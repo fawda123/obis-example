@@ -122,6 +122,7 @@ flowchart LR
     subgraph emof.csv
         EMOF["<b>eMoF</b>
         ────────────────
+        eventID <i>(links to event)</i>
         occurrenceID <i>(links to occurrence)</i>
         measurementType / measurementTypeID
         measurementValue
@@ -129,6 +130,7 @@ flowchart LR
     end
 
     CE -->|eventID| OCC
+    CE -->|eventID| EMOF
     OCC -->|occurrenceID| EMOF
 ```
 

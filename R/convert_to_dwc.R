@@ -278,6 +278,7 @@ make_emof <- function(df, type, type_id, value_col, unit, unit_id) {
   df |>
     filter(!is.na(.data[[value_col]]), .data[[value_col]] != "") |>
     transmute(
+      eventID           = eventID,
       occurrenceID      = occurrenceID,
       measurementType   = type,
       measurementTypeID = type_id,
@@ -303,6 +304,7 @@ emof <- bind_rows(
   emof_src |>
     filter(!is.na(cover_value), cover_value != "") |>
     transmute(
+      eventID            = eventID,
       occurrenceID       = occurrenceID,
       measurementType    = "seagrass percent cover (Braun-Blanquet scale)",
       measurementTypeID  = "",
