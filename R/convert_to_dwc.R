@@ -53,9 +53,20 @@ ABSENCE_TAXON_RANK  <- "order"
 # VERIFY: replace `transect_sf` with the name of your sf object and
 # VERIFY: replace `Transect` with the column in that sf object that
 #         matches the Transect column in trnsct.
+load(here('data', 'strlocs.rda'))
+
 transect_bearing <- transect_lines |>
   st_drop_geometry() |>
   select(Transect = Site, bearing)
+
+transect_bearing <- bind_rows(
+  transect_bearing,
+  strlocs |>
+    st_drop_geometry() |>
+    rename(Transect = transect) |>
+    select(Transect, bearing) |>
+    filter(!Transect %in% transect_bearing$Transect)
+)
 
 transect_locs <- transect_sf |>
   filter(Metermark == 0) |>
@@ -66,6 +77,14 @@ transect_locs <- transect_sf |>
   st_drop_geometry() |>
   select(Transect = TRAN_ID, decimalLatitude, decimalLongitude) |>
   left_join(transect_bearing, by = "Transect")
+
+# fill in transects not covered by trnpts/trnlns
+strlocs_supplement <- strlocs |>
+  st_drop_geometry() |>
+  rename(Transect = transect, decimalLatitude = latitude, decimalLongitude = longitude) |>
+  filter(!Transect %in% transect_locs$Transect)
+
+transect_locs <- bind_rows(transect_locs, strlocs_supplement)
 
 dat <- trnsct |>
   left_join(transect_locs, by = "Transect") |>
