@@ -330,7 +330,10 @@ emof <- bind_rows(
       measurementValue   = cover_value,
       measurementUnit    = "Braun-Blanquet scale",
       measurementUnitID  = "",
-      measurementRemarks = cover_remarks
+      measurementRemarks = coalesce(
+        cover_remarks,
+        if_else(cover_value == "Reported", "Present with no coverage estimated", NA_character_)
+      )
     ),
 
   make_emof(emof_src |> filter(BladeLength_Avg > 0),
