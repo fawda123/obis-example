@@ -154,6 +154,18 @@ occurrence row in the eMoF file.
 - [ ] Author EML metadata (required alongside the CSVs — see the
       [OBIS metadata guide](https://manual.obis.org/eml.html))
 
+## OBIS upload instructions
+
+1. Log in to the [OBIS IPT](https://ipt-obis.gbif.us/) with your GBIF account
+2. Click "Add new resource" and select "Darwin Core Archive"
+3. Upload event.csv, occurrence.csv, and emof.csv to source data, in that order
+4. Add the appropriate Darwin Core mappings, check for issues
+  - Darwin Core Event -> event.csv
+  - Darwin Core Occurrence -> occurrence.csv
+  - Extended Measurement Or Facts -> emof.csv
+5. Add metadata, can link from data if mappings are present and correct, otherwise enter manually
+6. Publish! Any issues to correct will be apparent.  Correct them, then try again.
+
 ## References
 
 - OBIS manual: https://manual.obis.org/
