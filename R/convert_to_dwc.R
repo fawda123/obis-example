@@ -234,8 +234,8 @@ event_fields <- c(
   "decimalLatitude", "decimalLongitude", "geodeticDatum",
   "minimumDepthInMeters", "maximumDepthInMeters",
   "country", "countryCode", "stateProvince", "waterBody", "locality", "locationID",
-  "samplingProtocol", "institutionCode", "datasetName", "collectionCode", "datasetID",
-  "license", "recordedBy", "locationRemarks"
+  "samplingProtocol", "institutionCode", "datasetName", "datasetID",
+  "license", "locationRemarks"
 )
 
 # ---------------------------------------------------------------------------
@@ -254,6 +254,7 @@ presence_occ <- base_cols |>
          basisOfRecord, occurrenceStatus,
          scientificName, scientificNameID, taxonRank,
          kingdom, phylum, class, order, family, genus,
+         collectionCode, recordedBy,
          identificationRemarks)
 
 # 4b. Absence rows ("No Cover" — one record per point, taxon = Alismatales)
@@ -275,7 +276,8 @@ absence_occ <- base_cols |>
   select(occurrenceID, eventID,
          basisOfRecord, occurrenceStatus,
          scientificName, scientificNameID, taxonRank,
-         kingdom, phylum, class, order, family, genus)
+         kingdom, phylum, class, order, family, genus,
+         collectionCode, recordedBy)
 
 occurrence <- bind_rows(presence_occ, absence_occ)
 
@@ -385,7 +387,7 @@ parent_events <- base_cols |>
     maximumDepthInMeters = NA_real_,
     country, countryCode, stateProvince, waterBody, locality,
     locationID           = paste(institutionCode, collectionCode, "loc", Transect, sep = ":"),
-    samplingProtocol, institutionCode, datasetName, collectionCode, datasetID, license, recordedBy,
+    samplingProtocol, institutionCode, datasetName, datasetID, license,
     locationRemarks
   )
 
